@@ -1,0 +1,225 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", sans-serif;
+        background: #f5f7fa;
+        overflow: hidden;
+    }
+
+    .sidebar {
+        width: 240px;
+        background: linear-gradient(180deg, #007bff, #339af0);
+        color: white;
+        padding: 30px 20px;
+        height: 100vh;
+        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        position: relative;
+    }
+
+    .sidebar h5 {
+        font-size: 20px;
+        margin-bottom: 30px;
+        font-weight: 600;
+    }
+
+    .nav-link {
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        display: block;
+        font-weight: 500;
+        position: relative;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .nav-link:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: scale(1.05);
+    }
+
+    .nav-link.active {
+        background: rgba(255, 255, 255, 0.25);
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+    }
+
+    .main-content {
+        flex-grow: 1;
+        padding: 40px;
+        background: #f5f7fa;
+        height: 100vh;
+        overflow-y: auto;
+        transition: all 0.4s ease;
+    }
+
+    .card-style {
+        background: white;
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+        animation: zoomIn 0.5s ease;
+        max-width: 900px;
+        margin: auto;
+    }
+
+    @keyframes zoomIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.25);
+    }
+
+    form#videoForm {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    form#videoForm input[type="file"] {
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+        font-size: 16px;
+    }
+
+    form#videoForm button {
+        background: #339af0;
+        color: white;
+        border: none;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.3s ease;
+    }
+
+    form#videoForm button:hover {
+        background: #1d6fd2;
+    }
+
+    #videoResult {
+        margin-top: 20px;
+        color: #28a745;
+        font-weight: 600;
+        word-wrap: break-word;
+    }
+
+    .loading-spinner {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 100px;
+    }
+
+    .loading-spinner::after {
+        content: '';
+        width: 60px;
+        height: 60px;
+        border: 6px solid #339af0;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+<div class="d-flex">
+    <div class="sidebar">
+        <h5>👋 欢迎，{{ username }}</h5>
+        <ul class="nav flex-column mt-4">
+            <li><a href="#" class="nav-link" onclick="loadContent('video', this)">视频解码</a></li>
+            <li><a href="#" class="nav-link" onclick="loadContent('profile', this)">生成基准标签</a></li>
+            <li><a href="#" class="nav-link" onclick="loadContent('settings', this)">推理结果可视化</a></li>
+            <li><a href="/logout" class="nav-link text-danger">退出系统</a></li>
+        </ul>
+    </div>
+
+    <div class="main-content" id="main-content">
+        <div class="card-style">
+            <h2>欢迎登录系统</h2>
+            <p>点击左侧导航查看对应功能内容。</p>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+function loadContent(section, el) {
+    $('.nav-link').removeClass('active');
+    if(el) $(el).addClass('active');
+
+    // 添加 loading 动画和提示
+    $('#main-content').html(`
+        <div class="card-style">
+            <div class="loading-spinner"></div>
+            <p style="text-align:center; margin-top: 20px; font-size: 18px; color: #333;">
+                请稍等，正在${section === 'profile' ? '生成基准标签' : '加载内容'}...
+            </p>
+        </div>
+    `);
+
+    $.get('/content/' + section, function(data) {
+        let contentHtml = `<div class="card-style">`;
+
+        if (section === 'profile' && data.filename) {
+            contentHtml += `<h2>${data.filename} 视频，基准标签生成成功!!</h2>`;
+        }
+
+        contentHtml += `${data.content}</div>`;
+
+        $('#main-content').html(contentHtml);
+
+        if(section === 'video') {
+            $('#videoForm').on('submit', function(e) {
+                e.preventDefault();
+                let formData = new FormData(this);
+                $('#videoResult').text('正在上传并处理，请稍候...');
+                fetch('/upload_video', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.message) {
+                        $('#videoResult').text(data.message);
+                    } else if(data.error) {
+                        $('#videoResult').css('color', 'red').text('错误：' + data.error);
+                    } else {
+                        $('#videoResult').css('color', 'red').text('未知错误');
+                    }
+                })
+                .catch(() => {
+                    $('#videoResult').css('color', 'red').text('请求失败，请稍后再试');
+                });
+            });
+        }
+    });
+}
+</script>
+{% endblock %}
